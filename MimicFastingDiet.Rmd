@@ -2,7 +2,7 @@
 title: "Mimic-Fasting Diet Plan"
 author: "Sandra Kilpatrick"
 date: "July 21, 2015"
-output: html_document
+output: pdf_document
 ---
 #Set directory and load libraries
 ```{r}
@@ -12,6 +12,7 @@ library(httr)
 library(ggplot2)
 library(tidyr)
 library(extrafont)
+
 
 ```
 #Read files into R
@@ -91,6 +92,11 @@ fastdiet <- food %>%
   mutate(nutrients_per_gram=nutrient_value/100,nutrients_per_serving=nutrients_per_gram*grams)
   
 ```
+#Write data set to text file
+```{r}
+write.table(fastdiet,"~/DataScience/NutritionDatabase/fastdiet.txt",sep="\t")
+
+```
 #Data exploration
 ```{r}
 #Create theme for charts
@@ -114,21 +120,21 @@ theme.diet_chart_SMALLM <- theme.diet_chart +
 ```
 #Basic exploration
 #Scatterplot
-```{r}
-ggplot(data=fastdiet, aes(x=nutrient, y=nutrient_value)) +
-  geom_point(alpha=.4, size=4, color="#880011") +
-  ggtitle("FastDiet") +
-  labs(x="Nutrient", y="Nutrient Value") +
-  theme.diet_chart_SCATTER
-```
+#```{r}
+#ggplot(data=fastdiet, aes(x=nutrient, y=nutrient_value)) +
+#  geom_point(alpha=.4, size=4, color="#880011") +
+#  ggtitle("FastDiet") +
+#  labs(x="Nutrient", y="Nutrient Value") +
+#  theme.diet_chart_SCATTER
+#```
 #Histogram
-```{r}
-ggplot(data=fastdiet, aes(x=food_id)) +
-  geom_histogram(fill="#880011") +  
-  ggtitle("Foods") +
-  labs(x="Foods", y="Count of Foods") +
-  theme.diet_chart_HIST
-```
+#```{r}
+#ggplot(data=fastdiet, aes(x=food_id)) +
+#  geom_histogram(fill="#880011") +  
+#  ggtitle("Foods") +
+#  labs(x="Foods", y="Count of Foods") +
+#  theme.diet_chart_HIST
+#```
 #Barplot
 #```{r}
 #fastdiet %>%
@@ -139,12 +145,12 @@ ggplot(data=fastdiet, aes(x=food_id)) +
 #    theme.diet_chart
 #```
 #small multiples
-```{r}
-ggplot(data=fastdiet, aes(x=nutrient_value)) +
-  geom_histogram(fill="#880011") +
-  ggtitle("Histogram of Nutrients") +
-  labs(x="Nutrient Value", y="Count Records") +
-  facet_wrap(~nutrient) +
-  theme.diet_chart_SMALLM
-```
+#```{r}
+#ggplot(data=fastdiet, aes(x=nutrient_value)) +
+#  geom_histogram(fill="#880011") +
+#  ggtitle("Histogram of Nutrients") +
+#  labs(x="Nutrient Value", y="Count Records") +
+#  facet_wrap(~nutrient) +
+#  theme.diet_chart_SMALLM
+#```
 
