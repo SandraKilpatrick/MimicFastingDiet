@@ -1,0 +1,150 @@
+---
+title: "Mimic-Fasting Diet Plan"
+author: "Sandra Kilpatrick"
+date: "July 21, 2015"
+output: html_document
+---
+#Set directory and load libraries
+```{r}
+setwd("~/DataScience/NutritionDatabase")
+library(dplyr)
+library(httr)
+library(ggplot2)
+library(tidyr)
+library(extrafont)
+
+```
+#Read files into R
+```{r}
+parse_file <- function(x) {
+  base_url <- "http://www.ars.usda.gov/SP2UserFiles/Place/12354500/Data/SR27/asc/"
+  resp <- GET(paste0(base_url, x))
+  
+  text <- content(resp, "text", encoding = "ISO-8859-1")
+  read.delim(text = text, sep = "^", quote = "~", na.strings = c("^^", "~~"),
+             header = FALSE, stringsAsFactors = FALSE) %>% tbl_df()
+ 
+}
+```
+#Create food
+```{r}
+food <- parse_file("FOOD_DES.txt")
+names(food) <- c("nbd_no", "fdgrp_cd", "long_desc", "shrt_desc", "comname", "manufacname",
+"survey", "ref_desc", "refuse", "sciname", "n_factor", "pro_factor", "fat_factor",
+"cho_factor")
+food$survey <- food$survey == "Y"
+food$nbd_no=as.character(food$nbd_no)
+food$fdgrp_cd=as.character(food$fdgrp_cd)
+```
+#Create food group
+```{r}
+food_group <- parse_file("FD_GROUP.txt")
+names(food_group) <- c("fdgrp_cd", "fdgrp_desc")
+food_group$fdgrp_cd=as.character(food_group$fdgrp_cd)
+```
+#Create nutrient
+```{r}
+nutrient <- parse_file("NUT_DATA.txt")
+names(nutrient) <- c("nbd_no", "nutr_no", "nutr_val", "num_data_pts", "std_error",
+                     "src_cd", "deriv_cd", "ref_ndb_no", "add_nutr_mark", "num_studies", "min",
+                     "max", "df", "low_eb", "up_eb", "stat_cmt", "addmod_date", "cc")
+nutrient$nbd_no=as.character(nutrient$nbd_no)
+nutrient$nutr_no=as.character(nutrient$nutr_no)
+nutrient$fortified[nutrient$add_nutr_mark == ""] <- NA
+```
+#Create nutrient definition file
+```{r}
+nutrient_def <- parse_file("NUTR_DEF.txt")
+names(nutrient_def) <- c("nutr_no", "units", "tagname", "nutrdesc", "num_dec", "sr_order")
+nutrient_def$nutr_no=as.character(nutrient_def$nutr_no)
+```
+#Create weight file
+```{r}
+weight <- parse_file("WEIGHT.txt")
+names(weight) <- c("nbd_no", "seq", "amount", "measure_desc", "gm_wgt",
+                   "num_data_pts", "std_dev")
+weight$nbd_no=as.character(weight$nbd_no)
+```
+#Explore the dataset
+```{r}
+glimpse(food)
+glimpse(food_group)
+glimpse(nutrient)
+glimpse(nutrient_def)
+glimpse(weight)
+
+```
+#Join the datasets and create algothrims
+```{r}
+fastdiet <- food %>%
+  full_join(food_group)%>%
+  full_join(nutrient)%>%
+  full_join(nutrient_def)%>%
+  inner_join(weight) %>%
+  #Select the variables for exploration
+  select(food_id=nbd_no,fdgrp_id=fdgrp_cd,desc=shrt_desc,food_group=fdgrp_desc,nutrient_id=nutr_no,nutrient_value=nutr_val,units,nutrient=nutrdesc,seq,amount,measure_desc,grams=gm_wgt)%>%
+  #Filter food groups we don't care about
+  filter(food_group!="Baby Foods",food_group!="American Indian/Alaska Native Foods",food_group!="Fast Foods",food_group!="Restaurant Foods")%>%
+  #filter for only the nutrients we are exploring
+  filter(nutrient_id==203|nutrient_id==204|nutrient_id==205|nutrient_id==208) %>%
+  #create new variables
+  mutate(nutrients_per_gram=nutrient_value/100,nutrients_per_serving=nutrients_per_gram*grams)
+  
+```
+#Data exploration
+```{r}
+#Create theme for charts
+#Basic
+theme.diet_chart <- 
+  theme(legend.position = "none") +
+  theme(plot.title = element_text(size=26, family="Trebuchet MS", face="bold", hjust=0, color="#666666")) +
+  theme(axis.title = element_text(size=18, family="Trebuchet MS", face="bold", color="#666666")) +
+  theme(axis.title.y = element_text(angle=0))
+#Scatterplot
+theme.diet_chart_SCATTER <- theme.diet_chart +
+                            theme(axis.title.x = element_text(hjust=0, vjust=-.5))
+#Histogram
+theme.diet_chart_HIST <- theme.diet_chart +
+                          theme(axis.title.x = element_text(hjust=0, vjust=-.5))
+#Small multiple
+theme.diet_chart_SMALLM <- theme.diet_chart +
+                            theme(panel.grid.minor = element_blank()) +
+                            theme(strip.text.x = element_text(size=16, family="Trebuchet MS", face="bold", color="#666666"))
+
+```
+#Basic exploration
+#Scatterplot
+```{r}
+ggplot(data=fastdiet, aes(x=nutrient, y=nutrient_value)) +
+  geom_point(alpha=.4, size=4, color="#880011") +
+  ggtitle("FastDiet") +
+  labs(x="Nutrient", y="Nutrient Value") +
+  theme.diet_chart_SCATTER
+```
+#Histogram
+```{r}
+ggplot(data=fastdiet, aes(x=food_id)) +
+  geom_histogram(fill="#880011") +  
+  ggtitle("Foods") +
+  labs(x="Foods", y="Count of Foods") +
+  theme.diet_chart_HIST
+```
+#Barplot
+#```{r}
+#fastdiet %>%
+#  filter(nutrient_value >725 & nutrient_value <1090) %>%
+#  ggplot(aes(x= as.factor(nutrient_value))) +
+#    geom_bar(fill="#880011") +
+#    labs(x="Nutrient Value") +
+#    theme.diet_chart
+#```
+#small multiples
+```{r}
+ggplot(data=fastdiet, aes(x=nutrient_value)) +
+  geom_histogram(fill="#880011") +
+  ggtitle("Histogram of Nutrients") +
+  labs(x="Nutrient Value", y="Count Records") +
+  facet_wrap(~nutrient) +
+  theme.diet_chart_SMALLM
+```
+
