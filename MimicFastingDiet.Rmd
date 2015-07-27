@@ -6,6 +6,7 @@ output: pdf_document
 ---
 #Set directory and load libraries
 ```{r}
+rm(list=ls())
 setwd("~/DataScience/NutritionDatabase")
 library(dplyr)
 library(httr)
@@ -79,22 +80,21 @@ glimpse(weight)
 ```{r}
 fastdiet <- food %>%
   full_join(food_group)%>%
-  full_join(nutrient)%>%
-  full_join(nutrient_def)%>%
-  inner_join(weight) %>%
-  #Select the variables for exploration
-  select(food_id=nbd_no,fdgrp_id=fdgrp_cd,desc=shrt_desc,food_group=fdgrp_desc,nutrient_id=nutr_no,nutrient_value=nutr_val,units,nutrient=nutrdesc,seq,amount,measure_desc,grams=gm_wgt)%>%
+  left_join(nutrient) %>%
+  left_join(nutrient_def) %>%
+  left_join(weight) %>%
+  select(food_id=nbd_no,fdgrp_id=fdgrp_cd,description=shrt_desc,food_group=fdgrp_desc,nutr_id=nutr_no,nutr_value=nutr_val,uom=units,nutrient=nutrdesc,seq,amount,measure_desc,grams=gm_wgt) %>%
   #Filter food groups we don't care about
   filter(food_group!="Baby Foods",food_group!="American Indian/Alaska Native Foods",food_group!="Fast Foods",food_group!="Restaurant Foods")%>%
   #filter for only the nutrients we are exploring
-  filter(nutrient_id==203|nutrient_id==204|nutrient_id==205|nutrient_id==208) %>%
+  filter(nutr_id==203|nutr_id==204|nutr_id==205|nutr_id==208) %>%
   #create new variables
-  mutate(nutrients_per_gram=nutrient_value/100,nutrients_per_serving=nutrients_per_gram*grams)
-  
+  mutate(nutrients_per_gram=nutr_value/100,nutrients_per_serving=nutrients_per_gram*grams)
+
 ```
 #Write data set to text file
 ```{r}
-write.table(fastdiet,"~/DataScience/NutritionDatabase/fastdiet.txt",sep="\t")
+write.table(fastdiet,"~/GitHub/MimicFastingDiet/fastdiet.txt",sep="\t")
 
 ```
 #Data exploration
@@ -153,4 +153,5 @@ theme.diet_chart_SMALLM <- theme.diet_chart +
 #  facet_wrap(~nutrient) +
 #  theme.diet_chart_SMALLM
 #```
+
 
