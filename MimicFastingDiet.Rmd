@@ -10,6 +10,8 @@ rm(list=ls())
 setwd("~/DataScience/NutritionDatabase")
 library(dplyr)
 library(httr)
+library(reshape)
+library(reshape2)
 library(ggplot2)
 library(tidyr)
 library(extrafont)
@@ -31,127 +33,328 @@ parse_file <- function(x) {
 #Create food
 ```{r}
 food <- parse_file("FOOD_DES.txt")
-names(food) <- c("nbd_no", "fdgrp_cd", "long_desc", "shrt_desc", "comname", "manufacname",
-"survey", "ref_desc", "refuse", "sciname", "n_factor", "pro_factor", "fat_factor",
-"cho_factor")
-food$survey <- food$survey == "Y"
-food$nbd_no=as.character(food$nbd_no)
-food$fdgrp_cd=as.character(food$fdgrp_cd)
+names(food) <- c("NDB.No", "FdGrp.Cd", "Long.Desc", "Shrt.Desc", "ComName", "ManufacName",
+"Survey", "Ref.desc", "Refuse", "SciName", "N.Factor", "Pro.Factor", "Fat.Factor",
+"CHO.factor")
+food$NDB.No<-as.character(food$NDB.No)
+food$FdGrp.Cd<-as.character(food$FdGrp.Cd)
+food$Survey <- food$Survey == "Y"
 ```
 #Create food group
 ```{r}
-food_group <- parse_file("FD_GROUP.txt")
-names(food_group) <- c("fdgrp_cd", "fdgrp_desc")
-food_group$fdgrp_cd=as.character(food_group$fdgrp_cd)
+food.group <- parse_file("FD_GROUP.txt")
+names(food.group) <- c("FdGrp.Cd", "FdGrp.Desc")
+food.group$FdGrp.Cd<-as.character(food.group$FdGrp.Cd)
+
 ```
 #Create nutrient
 ```{r}
 nutrient <- parse_file("NUT_DATA.txt")
-names(nutrient) <- c("nbd_no", "nutr_no", "nutr_val", "num_data_pts", "std_error",
-                     "src_cd", "deriv_cd", "ref_ndb_no", "add_nutr_mark", "num_studies", "min",
-                     "max", "df", "low_eb", "up_eb", "stat_cmt", "addmod_date", "cc")
-nutrient$nbd_no=as.character(nutrient$nbd_no)
-nutrient$nutr_no=as.character(nutrient$nutr_no)
-nutrient$fortified[nutrient$add_nutr_mark == ""] <- NA
+names(nutrient) <- c("NDB.No", "Nutr.No", "Nutr.Val", "Num.Data.Pts", "Std.Err",
+                     "Src.Cd", "Deriv.Cd", "Ref.NDB.No", "Add.Nutr.Mark", "Num.Studies", "Min",
+                     "Max", "DF", "Low.EB", "Up.EB", "Stat.cmt", "AddMod.Date", "CC")
+nutrient$Add.Nutr.Mark[nutrient$Add.Nutr.Mark == ""] <- NA
+nutrient$NDB.No <- as.character(nutrient$NDB.No)
+nutrient$Nutr.No <- as.character(nutrient$Nutr.No)
+
 ```
 #Create nutrient definition file
 ```{r}
-nutrient_def <- parse_file("NUTR_DEF.txt")
-names(nutrient_def) <- c("nutr_no", "units", "tagname", "nutrdesc", "num_dec", "sr_order")
-nutrient_def$nutr_no=as.character(nutrient_def$nutr_no)
+nutrient.def <- parse_file("NUTR_DEF.txt")
+names(nutrient.def) <- c("Nutr.No", "Units", "Tagname", "NutrDesc", "Num.Dec", "SR.Order")
+nutrient.def$Nutr.No <- as.character(nutrient.def$Nutr.No)
+
 ```
 #Create weight file
 ```{r}
 weight <- parse_file("WEIGHT.txt")
-names(weight) <- c("nbd_no", "seq", "amount", "measure_desc", "gm_wgt",
-                   "num_data_pts", "std_dev")
-weight$nbd_no=as.character(weight$nbd_no)
+names(weight) <- c("NDB.No", "Seq", "Amount", "Msre.Desc", "Gm.Wgt",
+                   "Num.Data.Pts", "Std.Dev")
+weight$NDB.No <- as.character(weight$NDB.No)
+weight$Seq<-as.character(weight$Seq)
+
 ```
 #Explore the dataset
 ```{r}
 glimpse(food)
-glimpse(food_group)
+glimpse(food.group)
 glimpse(nutrient)
-glimpse(nutrient_def)
+glimpse(nutrient.def)
 glimpse(weight)
 
 ```
 #Join the datasets and create algothrims
 ```{r}
-fastdiet <- food %>%
-  full_join(food_group)%>%
-  left_join(nutrient) %>%
-  left_join(nutrient_def) %>%
-  left_join(weight) %>%
-  select(food_id=nbd_no,fdgrp_id=fdgrp_cd,description=shrt_desc,food_group=fdgrp_desc,nutr_id=nutr_no,nutr_value=nutr_val,uom=units,nutrient=nutrdesc,seq,amount,measure_desc,grams=gm_wgt) %>%
+#Join food, food group, nutrient, nutrient.def and weight datasets
+mimicfast <- food %>%
+    left_join(food.group)%>%
+    select(NDB.No,FdGrp.Cd,Shrt.Desc,FdGrp.Desc) %>%
+    left_join(nutrient)%>%
+    select(NDB.No,FdGrp.Cd,Shrt.Desc,FdGrp.Desc,Nutr.No,Nutr.Val) %>%
+    left_join(nutrient.def)%>%
+    select(NDB.No,FdGrp.Cd,Shrt.Desc,FdGrp.Desc,Nutr.No,Nutr.Val,Units,NutrDesc) %>%
+    full_join(weight)%>%
+    select(food.id=NDB.No,foodgrp.id=FdGrp.Cd,description=Shrt.Desc,food.group=FdGrp.Desc,nutr.id=Nutr.No,nutr.val=Nutr.Val,Units,nutrient=NutrDesc,seq=Seq,amount=Amount,measure.desc=Msre.Desc,grams=Gm.Wgt)
+```
+#Create the dataset for day 1 with variables we need
+
+```{r}
+mimicfast.1 <- mimicfast %>%
   #Filter food groups we don't care about
-  filter(food_group!="Baby Foods",food_group!="American Indian/Alaska Native Foods",food_group!="Fast Foods",food_group!="Restaurant Foods")%>%
+  filter(!grepl("Baby Foods|American Indian/Alaska Native Foods|American Indian/Alaska Native Foods|Fast Foods|Restaurant Foods",food.group))%>%
   #filter for only the nutrients we are exploring
-  filter(nutr_id==203|nutr_id==204|nutr_id==205|nutr_id==208) %>%
+  filter(nutr.id==203|nutr.id==204|nutr.id==205|nutr.id==208|nutr.id==291)%>%
+  arrange(food.id,nutr.id) %>%
   #create new variables
-  mutate(nutrients_per_gram=nutr_value/100,nutrients_per_serving=nutrients_per_gram*grams)
+  mutate(uniq.id=paste(food.id,seq)) %>%
+  mutate(nutrients.per.gram=nutr.val/100,nutrients.per.serving=nutrients.per.gram*grams) %>%
+  arrange(food.id,nutr.id)
 
+head(mimicfast.1)
 ```
-#Write data set to text file
+#Establish nutrient objectives
 ```{r}
-write.table(fastdiet,"~/GitHub/MimicFastingDiet/fastdiet.txt",sep="\t")
 
+#Day 1 variables
+calorie.obj.day.1<-1090
+protein.obj.day<-.10
+fat.obj.day<-.56
+carb.obj.day<-.34
+
+protein.allowance.per.day.1<-calorie.obj.day.1*protein.obj.day
+fat.allowance.per.day.1<-calorie.obj.day.1*fat.obj.day
+carb.allowance.per.day.1<-calorie.obj.day.1*carb.obj.day
+
+calorie.allowance.per.serving.day.1<-calorie.obj.day.1/3
+protein.allowance.per.serving.day.1<-protein.allowance.per.day.1/2
+fat.allowance.per.serving.day.1<-fat.allowance.per.day.1/3
+carb.allowance.per.serving.day.1<-carb.allowance.per.day.1/3
+
+#Day 2 variables
+calorie.obj.day.2<-725
+protein.obj.day<-.10
+fat.obj.day<-.56
+carb.obj.day<-.34
+
+protein.allowance.per.day.2<-calorie.obj.day.1*protein.obj.day
+fat.allowance.per.day.2<-calorie.obj.day.2*fat.obj.day
+carb.allowance.per.day.2<-calorie.obj.day.2*carb.obj.day
+
+calorie.allowance.per.serving.day.2<-calorie.obj.day.2/3
+protein.allowance.per.serving.day.2<-protein.allowance.per.day.2/2
+fat.allowance.per.serving.day.2<-fat.allowance.per.day.2/3
+carb.allowance.per.serving.day.2<-carb.allowance.per.day.2/3
 ```
-#Data exploration
+#Calculate difference in nutrient servings
 ```{r}
-#Create theme for charts
-#Basic
-theme.diet_chart <- 
-  theme(legend.position = "none") +
-  theme(plot.title = element_text(size=26, family="Trebuchet MS", face="bold", hjust=0, color="#666666")) +
-  theme(axis.title = element_text(size=18, family="Trebuchet MS", face="bold", color="#666666")) +
-  theme(axis.title.y = element_text(angle=0))
-#Scatterplot
-theme.diet_chart_SCATTER <- theme.diet_chart +
-                            theme(axis.title.x = element_text(hjust=0, vjust=-.5))
-#Histogram
-theme.diet_chart_HIST <- theme.diet_chart +
-                          theme(axis.title.x = element_text(hjust=0, vjust=-.5))
-#Small multiple
-theme.diet_chart_SMALLM <- theme.diet_chart +
-                            theme(panel.grid.minor = element_blank()) +
-                            theme(strip.text.x = element_text(size=16, family="Trebuchet MS", face="bold", color="#666666"))
+#Calorie per serving variance - Day 1
+calories.day.1 <- mimicfast.1 %>%
+  filter(nutr.id==208) %>%
+  mutate(calorie.var.day.1=calorie.allowance.per.serving.day.1-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+protein.day.1 <- mimicfast.1 %>%
+  filter(nutr.id==203) %>%
+  mutate(protein.var.day.1=protein.allowance.per.serving.day.1-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+fat.day.1 <- mimicfast.1 %>%
+  filter(nutr.id==204) %>%
+  mutate(fat.var.day.1=fat.allowance.per.serving.day.1-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+carb.day.1 <- mimicfast.1 %>%
+  filter(nutr.id==205) %>%
+  mutate(carb.var.day.1=carb.allowance.per.serving.day.1-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+
+#Calorie per serving variance - Day 2
+calories.day.2 <- mimicfast.1 %>%
+  filter(nutr.id==208) %>%
+  mutate(calorie.var.day.2=calorie.allowance.per.serving.day.2-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+protein.day.2 <- mimicfast.1 %>%
+  filter(nutr.id==203) %>%
+  mutate(protein.var.day.2=protein.allowance.per.serving.day.2-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+fat.day.2 <- mimicfast.1 %>%
+  filter(nutr.id==204) %>%
+  mutate(fat.var.day.2=fat.allowance.per.serving.day.2-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+carb.day.2 <- mimicfast.1 %>%
+  filter(nutr.id==205) %>%
+  mutate(carb.var.day.2=carb.allowance.per.serving.day.2-nutrients.per.serving) %>%
+  arrange(food.id,nutr.id)
+```
+#Join the Day 1 datasets
+```{r}
+nutrients.var.day.1 <- mimicfast.1 %>%
+  left_join(calories.day.1)%>%
+  left_join(protein.day.1) %>%
+  left_join(fat.day.1) %>%
+  left_join(carb.day.1) %>%
+  arrange(food.id,nutr.id)
+
+head(nutrients.var.day.1)
+```
+#Data set from wide to long
+```{r}
+mimicfast.data.long.1<-melt(data.frame(nutrients.var.day.1),
+id.vars=c("food.id","foodgrp.id","description","food.group","nutr.id","nutrient","measure.desc","grams","nutrients.per.gram","nutrients.per.serving"),
+measure.vars=c("calorie.var.day.1","protein.var.day.1","fat.var.day.1","carb.var.day.1"),
+variable.name="nutrient.allow.meal.desc.day.1",
+value.name="nutrient.allow.meal.value.day.1",na.rm=TRUE
+)
+
+mimicfastdiet.1<-select(mimicfast.data.long.1,food.id,foodgrp.id,description,food.group,nutr.id,nutrient,measure.desc,grams,nutrients.per.gram,nutrients.per.serving,nutr.day.1=variable,nutr.var.day.1=value)
+
+head(mimicfastdiet.1)
+```
+#Join the Day 2 datasets
+```{r}
+nutrients.var.day.2 <- mimicfast.1 %>%
+  left_join(calories.day.2) %>%
+  left_join(protein.day.2) %>%
+  left_join(fat.day.2) %>%
+  left_join(carb.day.2) %>%
+  arrange(food.id,nutr.id)
+
+head(nutrients.var.day.2)
+```
+#Data set from wide to long
+```{r}
+mimicfast.data.long.2<-melt(data.frame(nutrients.var.day.2),
+id.vars=c("food.id","foodgrp.id","description","food.group","nutr.id","nutrient","measure.desc","grams","nutrients.per.gram","nutrients.per.serving"),
+measure.vars=c("calorie.var.day.2","protein.var.day.2","fat.var.day.2","carb.var.day.2"),
+variable.name="nutrient.allow.meal.desc.day.2",
+value.name="nutrient.allow.meal.value.day.2",na.rm=TRUE
+)
+mimicfastdiet.2<-select(mimicfast.data.long.2,food.id,foodgrp.id,description,food.group,nutr.id,nutrient,measure.desc,grams,nutrients.per.gram,nutrients.per.serving,nutr.day.2=variable,nutr.var.day.2=value)
+head(mimicfastdiet.2)
 
 ```
-#Basic exploration
-#Scatterplot
-#```{r}
-#ggplot(data=fastdiet, aes(x=nutrient, y=nutrient_value)) +
-#  geom_point(alpha=.4, size=4, color="#880011") +
-#  ggtitle("FastDiet") +
-#  labs(x="Nutrient", y="Nutrient Value") +
-#  theme.diet_chart_SCATTER
-#```
-#Histogram
-#```{r}
-#ggplot(data=fastdiet, aes(x=food_id)) +
-#  geom_histogram(fill="#880011") +  
-#  ggtitle("Foods") +
-#  labs(x="Foods", y="Count of Foods") +
-#  theme.diet_chart_HIST
-#```
-#Barplot
-#```{r}
-#fastdiet %>%
-#  filter(nutrient_value >725 & nutrient_value <1090) %>%
-#  ggplot(aes(x= as.factor(nutrient_value))) +
-#    geom_bar(fill="#880011") +
-#    labs(x="Nutrient Value") +
-#    theme.diet_chart
-#```
-#small multiples
-#```{r}
-#ggplot(data=fastdiet, aes(x=nutrient_value)) +
-#  geom_histogram(fill="#880011") +
-#  ggtitle("Histogram of Nutrients") +
-#  labs(x="Nutrient Value", y="Count Records") +
-#  facet_wrap(~nutrient) +
-#  theme.diet_chart_SMALLM
-#```
+#Join datasets for both days
+```{r}
+mimicfastdiet<- mimicfastdiet.1 %>%
+  left_join(mimicfastdiet.2) %>%
+  arrange(food.id,nutr.id)
 
+head(mimicfastdiet)
+```
+#Write data set to file
+```{r}
+write.table(mimicfastdiet,"~/DataScience/NutritionDatabase/mimicfastdiet.txt",sep="\t")
+```
+#graph
+```{r}
+#Open plot frame
+plot.new() # or frame()
+
+#Set up measurements of the graphics window
+pWidth = 3
+pHeight = 2
+plot.window(c(0,pWidth),
+            c(0,pHeight))
+
+#Draw an empty plot
+plot(5, 
+     5, 
+     type="n", 
+     axes=FALSE, 
+     ann=FALSE, 
+     xlim=c(0, 10), 
+     ylim = c(0,10))
+
+#Fill empty plot with axes labels and a title
+mtext("Food Group", 
+      side=1) #Add text to the x-axis
+mtext("Calories per serving",
+      side=2) 
+title("Mimic Fasting") #Add a title
+
+#Draw a box around the plot
+box() #Draw a box
+points(5,  #Put (red) point in the plot at (5,5)
+       5, 
+       col="red") 
+points(5, 
+       7, 
+       col="orange", 
+       pch=3, 
+       cex=2)
+points(c(0, 0, 1), 
+       c(2, 4, 6), 
+       col="green", 
+       pch=4)
+
+#Name the axes and title R plot
+x <- seq(0,2*pi,0.1)
+y <- sin(x)
+plot(x,
+     y,
+     main="Mimic Fasting Diet", 
+     sub="sub-title", 
+     xlab="x-axis label", 
+     ylab="y-axis label")
+
+#Add subscripts
+#plot(1,
+#     1, 
+#     main=expression("title"^2)) #Upscript
+#plot(1,
+#     1, 
+#     main=expression("title"[2])) #Subscript
+
+#Greek leters
+#x <- seq(0,2*pi,0.1)
+#y <- sin(x)
+#plot(x,
+#     y,
+#     xlab = expression(paste("Greek letter ", phi)),
+#     ylab = expression(paste("Greek letter ",mu)))
+
+#Adjust appearance of the axes' labels
+x <- seq(0,2*pi,0.1)
+y <- sin(x)
+plot(x,
+     y,
+     main=expression("main title"^2), 
+     sub=expression("sub-title"[2]), 
+     xlab="x-axis label", 
+     ylab="y-axis label",
+     col.lab="blue",
+     cex.lab=0.75)
+
+#Remove Plot's axis labels and annotations
+x <- seq(0,2*pi,0.1)
+y <- sin(x)
+plot(x,
+     y,
+     xaxt="n",
+     yaxt="n",
+     ann=FALSE)
+
+#Rotate Plot's axis labels
+x <- seq(0,2*pi,0.1)
+y <- sin(x)
+plot(x,
+     y, 
+     axes=FALSE)
+box()
+axis(2, 
+     las=2)
+axis(1, 
+     las=0)
+
+#Move axis labels of R plot
+x<-seq(0,2*pi,0.1)
+y<-sin(x)
+plot(x,
+     y,
+     axes=FALSE, # Do not plot any axes
+     ann=FALSE) # Do not plot any annotations
+axis(3)   # Draw the x-axis above the plot area
+axis(4)   # Draw the y-axis to the right of the plot area
+box()
+
+
+
+```
 
